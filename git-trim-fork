@@ -1,0 +1,45 @@
+#!/usr/bin/env perl
+
+# A small scriptie to clean up all those branches that get carried over
+# after a github fork that (99% of the time) end up cluttering everything up
+# and obscuring your own branches :)
+#
+# This script is under the GNU GPL, either version 2 or (at your option) any
+# later version.
+#
+# Chris Weyl <cweyl@alumni.drew.edu> 2010.
+
+use common::sense;
+#use opts;
+
+use Git;
+#use IO::Prompt;
+
+my $repo = Git->repository;
+
+my @origin_branches = sort
+    grep { !/^HEAD / && $_ ne 'master' }
+    map  { s!^\s+remotes/origin/!!; $_ }
+    grep { /^\s+remotes\/origin/ }
+    $repo->command(qw{ branch -a })
+    ;
+
+my %local_branches =
+    map { s/^\**\s+//; $_ }
+    $repo->command('branch')
+    ;
+
+my @local_branches = keys %local_branches;
+
+for my $remote_branch (@origin_branches) {
+
+    if ($remote_branch ~~ @local_branches) {
+
+        say "$remote_branch has a local branch; not deleting";
+        next;
+    }
+
+    # git-branch prints its bits to STDERR
+    $repo->command(qw{ push origin }, ":$remote_branch");
+}
+
