@@ -10,10 +10,17 @@
 # Chris Weyl <cweyl@alumni.drew.edu> 2010.
 
 use common::sense;
-#use opts;
+use opts;
 
 use Git;
 #use IO::Prompt;
+use Pod::Usage;
+
+opts
+    my $help => { isa => 'Bool', default => 0 },
+    ;
+
+pod2usage if $help;
 
 my $repo = Git->repository;
 
@@ -43,3 +50,41 @@ for my $remote_branch (@origin_branches) {
     $repo->command(qw{ push origin }, ":$remote_branch");
 }
 
+__END__
+
+=head1 NAME
+
+git-trim-fork - Cleanup branches from a Github fork
+
+=head1 SYNOPSIS
+
+    git trim-fork [--help]
+
+=head1 DESCRIPTION
+
+Every once in a while, for one reason or another it becomes prudent to fork a
+GitHub repository.  Of course, when you fork that repository, you get all of
+the branches in that repository.  Even if you don't need or want any of them.
+Even if there are 30 of them.
+
+To add to it, it may be a popular repository, so the next time you git-sync
+you get all 30 of their copies of the branches.  From each fork.  Oye.
+
+trim-fork is a git command that runs through your list of remote branches
+(matching remotes/origin/*), checks to see if you have a local branch of the
+same name, and removes any that don't.  (We also don't remove HEAD or master,
+even if you don't have a local branch/ref.)
+
+So do your part.  Be a good, upstanding githubian!  Purge your unneeded
+branches!
+
+=head1 AUTHOR
+
+Chris Weyl <cweyl@alumni.drew.edu>
+
+=head1 LICENSE AND COPYRIGHT
+
+This script is under the GNU GPL, either version 2 or (at your option) any
+later version.
+
+=cut
