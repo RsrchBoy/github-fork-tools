@@ -1,0 +1,104 @@
+#!/usr/bin/env perl
+
+# This script is under the GNU GPL, either version 2 or (at your option) any
+# later version.
+#
+# Chris Weyl <cweyl@alumni.drew.edu> 2010.
+
+use common::sense;
+use autodie 'system';
+use opts;
+
+use File::Temp 'tempfile';
+use File::Slurp 'write_file';
+
+use Git;
+use IO::Prompt;
+use Pod::Usage;
+use Version::Next;
+
+our $VERSION = '0.001_01';
+
+opts
+    my $help    => { isa => 'Bool', default => 0 },
+    my $verbose => { isa => 'Bool', default => 0 },
+
+    my $tag     => { isa => 'Str' },
+    my $ask     => { isa => 'Bool', default => 0 },
+    my $editor  => { isa => 'Str',  default => $ENV{EDITOR} || 'vi' },
+    my $cl_file => { isa => 'Str',  default => 'ChangeLog' },
+    my $tag_msg => { isa => 'Str',  default => 'as released to the CPAN' },
+    ;
+
+pod2usage if $help;
+
+my $repo = Git->repository;
+my @tags = $repo->command('tag');
+
+my $last_tag = pop @tags;
+
+print "Found @tags tags; last tag is: $last_tag\n" if $verbose;
+
+$tag //= Version::Next::next_version($last_tag);
+
+print "Our new tag is: $tag\n";
+
+die "\n" unless !$ask || prompt("Apply $tag and commit? (y/n) ", -YyNn1);
+
+# find/replace
+# find . -name '*.pm' -type f -exec perl -pi -e "s/$SAFE_OLD/$NEW/g" {} \;
+(my $safe_old = $last_tag) =~ s/\./\\./g;
+my $update_cmd = "$^X -pi -e '/VERSION/ && s/$safe_old/$tag/'";
+system "find . -name '*.pm' -type f -exec $update_cmd {} \\;";
+
+# create our message....
+my ($fh, $filename) = tempfile(TMPDIR => 1, CLEANUP => 1);
+print $fh "Checking in prior to $tag. Changes delta is:\n\n";
+print $fh "$_\n" for $repo->command('diff', $last_tag, $cl_file);
+close $fh;
+
+$repo->command(qw{ commit -a -F }, $filename);
+$repo->command(qw{ tag -a -m }, "'$tag, $tag_msg'", $tag);
+
+# done!
+
+__END__
+
+=head1 NAME
+
+git-checkin - Update $VERSION, tag and commit!
+
+=head1 SYNOPSIS
+
+    git checkin [--help] [--tag NEW_TAG] [--ask] [...]
+
+        --help  display help screen
+        --ask   Ask before tagging
+        --tag   New tag (to override default)
+        --cl    ChangeLog file (default is "ChangeLog")
+
+=head1 DESCRIPTION
+
+git-checkin is a small git command designed to make the changes delta, version
+bump, tag and tag message process easier.  When run, it:
+
+    * determines the next tag (using Version::Next)
+    * creates a commit message by taking the delta of the ChangeLog since
+      the last tag
+    * bumps $VERSION wherever it can find it
+    * commits the version bump using the aforementioned message
+    * tags the repo
+
+Basically, all the things you want to do before releasing something to, say,
+the CPAN.
+
+=head1 AUTHOR
+
+Chris Weyl <cweyl@alumni.drew.edu>
+
+=head1 LICENSE AND COPYRIGHT
+
+This script is under the GNU GPL, either version 2 or (at your option) any
+later version.
+
+=cut
